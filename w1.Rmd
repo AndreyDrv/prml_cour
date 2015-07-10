@@ -1,0 +1,171 @@
+############## Prediction ##############
+# components of predictor = question -> input data -> features (extracting variables/characteristics)
+# -> algorithm -> parameters (estimate) -> evaluation
+
+# Example. Spam emails.
+#The dataset contains statistics about the word frequencies in spam/nospam emails 
+library(kernlab)
+data(spam)
+head(spam)
+
+# plot the frequency of the word "your". red - spam emails, blue - nospam emails 
+plot(density(spam$your[spam$type=="nonspam"]),
+     col="blue",main="",xlab="Frequency of 'your'")
+lines(density(spam$your[spam$type=="spam"]),col="red")
+abline(v=0.5,col="black")
+
+# make a very simple hypotesis that if the frequency of the word "your" is more than 0.5, the
+#email is a spam. 
+prediction <- ifelse(spam$your > 0.5,"spam","nonspam")
+table(prediction,spam$type)/length(spam$type)
+# Result shows the count of classified values by groups:
+#   - True positive = correctly identified (predicted true when true)
+#   - False positive = incorrectly identified (predicted true when false)
+#   - True negative = correctly rejected (predicted false when false)
+#   - False negative = incorrectly rejected (predicted false when true)
+#
+#-----------------------------------------------------
+#                            | is group 1| is group 2|
+#----------------------------|-----------|-----------|
+# test if belongs to group 1 | detected  |  error 1  |
+#----------------------------|-----------|-----------|
+# test if belongs to group 2 | error 2   |  detected |
+#-----------------------------------------------------
+#
+
+############## In Sample vs Out of Sample Errors
+# in sample error = error resulted from applying your prediction algorithm to the dataset 
+#you built it with
+
+# out of sample error = error resulted from applying your prediction algorithm to a new data set
+
+#in sample error < out of sample error
+# - reason is over-fitting: model too adapted/optimized for the initial dataset
+
+# Example
+# load data
+library(kernlab); data(spam); set.seed(333)
+# picking a small subset (10 values) from spam data set
+smallSpam <- spam[sample(dim(spam)[1],size=10),]
+# label spam = 2 and ham = 1
+spamLabel <- (smallSpam$type=="spam")*1 + 1
+# plot the capitalAve values for the dataset with colors differentiated by spam/ham (2 vs 1)
+plot(smallSpam$capitalAve,col=spamLabel)
+# after reviwing the plot: red - spam, black - notspam
+
+# Lets try to build the first (1) rule (over-fitting to capture all variation)
+# Where:
+#   - capitalAve > 2.7 = "spam"
+#   - capitalAve < 2.40 = "nonspam"
+#   - capitalAve between 2.40 and 2.45 = "spam"
+#   - capitalAve between 2.45 and 2.7 = "nonspam"
+rule1 <- function(x){
+  prediction <- rep(NA,length(x))
+  prediction[x > 2.7] <- "spam"
+  prediction[x < 2.40] <- "nonspam"
+  prediction[(x >= 2.40 & x <= 2.45)] <- "spam"
+  prediction[(x > 2.45 & x <= 2.70)] <- "nonspam"
+  return(prediction)
+}
+#tabulate results of prediction algorithm 1 (in sample error -> no error in this case)
+table(rule1(smallSpam$capitalAve),smallSpam$type)
+#Result: we can see the classification is perfect (5 was exactly detected as spam, 5 as notspam)
+
+
+# Lets try to build the second (2) rule (simple, setting a threshold)
+rule2 <- function(x){
+  prediction <- rep(NA,length(x))
+  prediction[x > 2.8] <- "spam"
+  prediction[x <= 2.8] <- "nonspam"
+  return(prediction)
+}#
+tabulate results of prediction algorithm 2(in sample error -> 10% in this case)
+table(rule2(smallSpam$capitalAve),smallSpam$type)
+
+# Apply found rules to complete spam data
+table(rule1(spam$capitalAve),spam$type)
+# tabulate out of sample error for algorithm 2
+table(rule2(spam$capitalAve),spam$type)
+# Result: both cases have a lot of errors (wrongly detected)
+
+#It is possible to output the accuracy of the both rules:
+# accuracy and total correct for algorithm 1 and 2
+rbind("Rule 1" = c(Accuracy = mean(rule1(spam$capitalAve)==spam$type),
+                   "Total Correct" = sum(rule1(spam$capitalAve)==spam$type)),
+      "Rule 2" = c(Accuracy = mean(rule2(spam$capitalAve)==spam$type),
+                   "Total Correct" = sum(rule2(spam$capitalAve)==spam$type)))
+
+
+############## Type of Errors
+#-----------------------------------------------------
+#                            |    +      |      -    |
+#----------------------------|-----------|-----------|
+#             +              |    TP     |     FP    |
+#----------------------------|-----------|-----------|
+#             -              |    FN     |     TN    |
+#-----------------------------------------------------
+#
+# Sensitivity (Recall)                  = TP / (TP+FN)
+# Specificity                           = TN / (FP+TN)
+# Positive Predictive Value (Precision) = TP / (TP+FP)
+# Negative Predictive Value             = TN / (FN+TN)
+# Accuracy                              = (TP+TN) / (TP+FP+FN+TN)
+
+# Mean squared error (or root mean squared error)
+#  - Continuous data, sensitive to outliers
+# Median absolute deviation
+#  - Continuous data, often more robust
+# Sensitivity (recall)
+#  - If you want few missed positives
+# Specificity
+#  - If you want few negatives called positives
+# Accuracy
+#  - Weights false positives/negatives equally
+# Concordance
+#  - One example is kappa
+# Predictive value of a positive (precision)
+#  - When you are screeing and prevelance is low
+
+
+############## Receiver Operating Characteristic Curves
+# are commonly used techniques to measure the quality of a prediction algorithm.
+
+
+############## Cross Validation
+# Procedures
+#     1. split training set into sub-training/test sets
+#     2. build model on sub-training set
+#     3. evaluate on sub-test set
+#     4. repeat and average estimated errors
+# Result
+#       - we are able to fit/test various different models with different variables included to the find the
+#         best one on the cross-validated test sets
+#       - we are able to test out different types of prediction algorithms to use and pick the best performing
+#         one
+#       - we are able to choose the parameters in prediction function and estimate their values
+#       - Note: original test set completely untouched, so when final prediction algorithm is applied, the
+#         result will be an unbiased measurement of the out of sample accuracy of the model
+# Approaches
+#       - random subsampling
+#       - K-fold
+#       - leave one out
+# Considerations
+#       - for time series data data must be used in "chunks"
+#         * one time period might depending all time periods previously (should not take random samples)
+#       - if you cross-validate to pick predictors, the out of sample error rate may not be the most accurate
+#         and thus the errors should still be measured on independent data
+
+#Random Subsampling:
+# - a randomly sampled test set is subsetted out from the original training set
+# - the predictor is built on the remaining training data and applied to the test set
+# - the above are three random subsamplings from the same training set
+
+#K-fold
+# - break training set into K subsets (above is a 3-fold cross validation)
+# - build the model/predictor on the remaining training data in each subset and applied to the test subset
+# - rebuild the data K times with the training and test subsets and average the findings
+
+#leave one out
+# - leave out exactly one sample and build predictor on the rest of training data
+# - predict value for the left out sample
+# - repeat for each sample
