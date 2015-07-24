@@ -1,0 +1,135 @@
+############### Model Selection ##############
+# goal in selecting models = avoid overfitting on training data and minimize error on test data
+
+# Approaches:
+# - split samples
+# - decompose expected prediction error
+# - hard thresholding for high-dimensional data
+# - regularization for regression
+# * ridge regression
+# * lasso regression
+
+
+# Example: Training vs Test Error for Combination of Predictors
+# all combinations of predictors are used to produce prediction models, and Residual Squared Error (RSS)
+# is calculated for all models on both the training and test sets
+
+# load data and set seed
+data(prostate); set.seed(1)
+# define outcome y and predictors x
+covnames <- names(prostate[-(9:10)])
+y <- prostate$lpsa; x <- prostate[,covnames]
+# create test set predictors and outcomes
+
+train.ind <- sample(nrow(prostate), ceiling(nrow(prostate))/2)
+y.test <- prostate$lpsa[-train.ind]; x.test <- x[-train.ind,]
+# create training set predictors and outcomes
+y <- prostate$lpsa[train.ind]; x <- x[train.ind,]
+# p = number of predictors
+p <- length(covnames)
+# initialize the list of residual sum squares
+rss <- list()
+# loop through each combination of predictors and build models
+for (i in 1:p) {
+  # compute matrix for p choose i predictors for i = 1...p (creates i x p matrix)
+  Index <- combn(p,i)
+  # calculate residual sum squares of each combination of predictors
+  rss[[i]] <- apply(Index, 2, function(is) {
+    # take each combination (or column of Index matrix) and create formula for regression
+    form <- as.formula(paste("y~", paste(covnames[is], collapse="+"), sep=""))
+    # run linear regression with combination of predictors on training data
+    isfit <- lm(form, data=x)
+    # predict outcome for all training data points
+    yhat <- predict(isfit)
+    # calculate residual sum squares for predictions on training data
+    train.rss <- sum((y - yhat)^2)
+    # predict outcome for all test data points
+    yhat <- predict(isfit, newdata=x.test)
+    # calculate residual sum squares for predictions on test data
+    test.rss <- sum((y.test - yhat)^2)
+    # store each pair of training and test residual sum squares as a list
+    c(train.rss, test.rss)
+  })
+}#
+set up plot with labels, title, and proper x and y limits
+plot(1:p, 1:p, type="n", ylim=range(unlist(rss)), xlim=c(0,p),
+     xlab="Number of Predictors", ylab="Residual Sum of Squares",
+     main="Prostate Cancer Data - Training vs Test RSS")
+# add data points for training and test residual sum squares
+for (i in 1:p) {
+  # plot training residual sum squares in blue
+  points(rep(i, ncol(rss[[i]])), rss[[i]][1, ], col="blue", cex = 0.5)
+  # plot test residual sum squares in red
+  points(rep(i, ncol(rss[[i]])), rss[[i]][2, ], col="red", cex = 0.5)
+}#
+find the minimum training RSS for each combination of predictors
+minrss <- sapply(rss, function(x) min(x[1,]))
+# plot line through the minimum training RSS data points in blue
+lines((1:p), minrss, col="blue", lwd=1.7)
+# find the minimum test RSS for each combination of predictors
+minrss <- sapply(rss, function(x) min(x[2,]))
+# plot line through the minimum test RSS data points in blue
+lines((1:p), minrss, col="red", lwd=1.7)
+# add legend
+legend("topright", c("Train", "Test"), col=c("blue", "red"), pch=1)
+# Result: from the above, we can clearly that test RSS error approaches the minimum at around 3 predictors and
+# increases slightly as more predictors are used
+
+
+
+### Split Samples
+# the best method to pick predictors/model is to split the given data into different test sets
+
+# process:
+# 1. divide data into training/test/validation sets (60 - 20 - 20 split)
+# 2. train all competing models on the training data
+# 3. apply the models on validation data and choose the best performing model
+# 4. re-split data into training/test/validation sets and repeat steps 1 to 3
+# 5. apply the overall best performing model on test set to appropriately assess performance on new
+# data
+#
+# Links: 
+#   http://www.biostat.jhsph.edu/~ririzarr/Teaching/649/
+#   http://www.cbcb.umd.edu/~hcorrada/PracticalML/
+
+
+
+### Decompose Expected Prediction Error
+# the expected prediction error is = Irreducible Error + Bias2 + Variance
+
+# - goal of prediction model = minimize overall expected prediction error
+# - irreducible error = noise inherent to the data collection process -> cannot be reduced
+# - bias/variance = can be traded in order to find optimal model (least error)
+
+# Links: 
+#   http://www.biostat.jhsph.edu/~ririzarr/Teaching/649/
+#   http://www.cbcb.umd.edu/~hcorrada/PracticalML/
+
+
+
+### Hard Thresholding
+# hard thresholding = can help estimate the coefficients/model by taking subsets of predictors and
+# building models
+
+# if there are more predictors than observations (high-dimensional data), linear regressions will only
+# return coefficients for some of the variables because there’s not enough data to estimate the rest of the
+# parameters
+
+# problem
+# - computationally intensive
+
+# load prostate data
+data(prostate)
+# create subset of observations with 10 variables
+small = prostate[1:5,]
+# print linear regression
+lm(lpsa ~ .,data =small)
+
+# Links: 
+#   http://www.biostat.jhsph.edu/~ririzarr/Teaching/649/
+#   http://www.cbcb.umd.edu/~hcorrada/PracticalML/
+
+
+
+
+### Regularization for regression
