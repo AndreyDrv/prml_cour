@@ -1,0 +1,349 @@
+############### Bootstrap aggregating (bagging) ##############
+# Basic idea:  
+#   Resample cases and recalculate predictions
+#   Average or majority vote
+# 
+# Notes:
+#   Similar bias
+#   Reduced variance
+#   More useful for non-linear functions
+
+# * bagging = bootstrap aggregating
+# - resample training data set (with replacement) and recalculate predictions
+# - average the predictions together or majority vote
+# - more information can be found here
+# * averaging multiple complex models have similar bias as each of the models on its own, and reduced
+# variance because of the average
+# * most useful for non-linear models
+
+# load data
+library(ElemStatLearn); data(ozone,package="ElemStatLearn")
+# reorder rows based on ozone variable
+ozone <- ozone[order(ozone$ozone),]
+# create empty matrix
+ll <- matrix(NA,nrow=10,ncol=155)
+# iterate 10 times
+for(i in 1:10){
+  # create sample from data with replacement
+  ss <- sample(1:dim(ozone)[1],replace=T)
+  # draw sample from the dataa and reorder rows based on ozone
+  ozone0 <- ozone[ss,]; ozone0 <- ozone0[order(ozone0$ozone),]
+  # fit loess function through data (similar to spline)
+  loess0 <- loess(temperature ~ ozone,data=ozone0,span=0.2)
+  #loess0 <- lm(temperature ~ ozone,data=ozone0)
+  # prediction from loess curve for the same values each time
+  ll[i,] <- predict(loess0,newdata=data.frame(ozone=1:155))
+}
+#plot the data points
+plot(ozone$ozone,ozone$temperature,pch=19,cex=0.5)
+# plot each prediction model
+for(i in 1:10){lines(1:155,ll[i,],col="grey",lwd=2)}
+# plot the average in red
+lines(1:155,apply(ll,2,mean),col="red",lwd=2)
+
+
+### Custom bagging function implementation example
+# load relevant package and data
+library(party); data(ozone,package="ElemStatLearn")
+# reorder rows based on ozone variable
+ozone <- ozone[order(ozone$ozone),]
+# extract predictors
+predictors <- data.frame(ozone=ozone$ozone)
+# extract outcome
+temperature <- ozone$temperature
+# run bagging algorithm
+treebag <- bag(predictors, temperature, B = 10,
+               # custom bagging function
+               bagControl = bagControl(fit = ctreeBag$fit,
+                                       predict = ctreeBag$pred,
+                                       aggregate = ctreeBag$aggregate))
+# plot data points
+plot(ozone$ozone,temperature,col='lightgrey',pch=19)
+# plot the first fit
+points(ozone$ozone,predict(treebag$fits[[1]]$fit,predictors),pch=19,col="red")
+# plot the aggregated predictions
+points(ozone$ozone,predict(treebag,predictors),pch=19,col="blue")
+
+
+
+
+
+
+# ############## Prediction with Trees ##############
+# prediction with trees = iteratively split variables into groups (effectively constructing decision trees)
+# -> produces nonlinear model
+# - the classification tree uses interactions between variables -> the ultimate groups/leafs may depend
+# on many variables
+# * the result (tree) is easy to interpret, and generally performs better predictions than regression models
+# when the relationships are non-linear
+# * transformations less important -> monotone transformations (order unchanged, such as log) will produce
+# same splits
+# * trees can be used for regression problems as well and use RMSE as measure of impurity
+# * however, without proper cross-validation, the model can be over-fitted (especially with large number
+#                                                                           of variables) and results may be variable from one run to the next
+# - it is also harder to estimate the uncertainty of the model
+# * party, rpart, tree packages can all build trees
+
+# Process:
+# 1. start with all variables in one group
+# 2. find the variable that best splits the outcomes into two groups
+# 3. divide data into two groups (leaves) based on the split performed (node)
+# 4. within each split, find variables to split the groups again
+# 5. continue this process until all groups are sufficiently small/homogeneous/“pure”
+
+# Measures of Impurity:
+#   Misclassification Error
+#   Gini Index
+#   Deviance
+#   Information Gai
+
+# - tree<-train(y ~ ., data=train, method="rpart") = constructs trees based on the outcome and
+# predictors
+
+# - plot(tree$finalModel, uniform=TRUE) = plots the classification tree with all nodes/splits
+
+### Iris example:
+
+# load iris data set
+data(iris)
+# create test/train data sets
+inTrain <- createDataPartition(y=iris$Species,p=0.7, list=FALSE)
+training <- iris[inTrain,]
+testing <- iris[-inTrain,]
+
+#Iris petal widths/sepal width
+qplot(Petal.Width,Sepal.Width,colour=Species,data=training)
+# result: can see 3 distinct clusters
+
+# fit classification tree as a model
+modFit <- train(Species ~ .,method="rpart",data=training)
+# print the classification tree
+print(modFit$finalModel)
+
+# plot the classification tree
+plot(modFit$finalModel, uniform=TRUE, 
+     main="Classification Tree")
+text(modFit$finalModel, use.n=TRUE, all=TRUE, cex=.8)
+#or with rattle
+rattle::fancyRpartPlot(modFit$finalModel)
+# to see the logic
+
+# predict on test values
+predict(modFit,newdata=testing)
+
+# Notes and further resources:
+#   Classification trees are non-linear models
+#     They use interactions between variables
+#     Data transformations may be less important (monotone transformations)
+#     Trees can also be used for regression problems (continuous outcome)
+#   Note that there are multiple tree building options in R both in the caret package - party, rpart and out of the caret package - tree
+#   Introduction to statistical learning
+#   Elements of Statistical Learning
+#   Classification and regression trees (http://www.amazon.com/Classification-Regression-Trees-Leo-Breiman/dp/0412048418)
+
+
+
+############### Random Forest ###############
+# random forest = extension of bagging on classification/regression trees
+#   - one of the most used/accurate algorithms along with boosting
+
+# process:
+# - bootstrap samples from training data (with replacement)
+# - split and bootstrap variables
+# - grow trees (repeat split/bootstrap) and vote/average final trees
+
+# drawbacks:
+# - algorithm can be slow (process large number of trees)
+# - hard to interpret (large numbers of splits and nodes)
+# - over-fitting (difficult to know which tree is causing over-fitting)
+# - Note: it is extremely important to use cross validation when running random forest algorithms
+
+# rf<-train(outcome ~ ., data=train, method="rf", prox=TRUE, ntree=500) = runs random forest
+# algorithm on the training data against all predictors
+
+# getTree(rf$finalModel, k=2) = return specific tree from random forest model
+
+# classCenters(predictors, outcome, proximity, nNbr) = return computes the cluster centers
+# using the nNbr nearest neighbors of the observations
+
+# predict(rf, test) = apply the random forest model to test data set
+
+# load data
+data(iris)
+# create train/test data sets
+inTrain <- createDataPartition(y=iris$Species,p=0.7, list=FALSE)
+training <- iris[inTrain,]
+testing <- iris[-inTrain,]
+# apply random forest
+modFit <- train(Species~ .,data=training,method="rf",prox=TRUE)
+
+# return the second tree (first 6 rows)
+head(getTree(modFit$finalModel,k=2))
+
+#[Additional] compute cluster centers
+irisP <- classCenter(training[,c(3,4)], training$Species, modFit$finalModel$prox)
+# convert irisP to data frame and add Species column
+irisP <- as.data.frame(irisP); irisP$Species <- rownames(irisP)
+# plot data points
+p <- qplot(Petal.Width, Petal.Length, col=Species,data=training)
+# add the cluster centers
+p + geom_point(aes(x=Petal.Width,y=Petal.Length,col=Species),size=5,shape=4,data=irisP)
+
+# predict outcome for test data set using the random forest model
+pred <- predict(modFit,testing)
+# logic value for whether or not the rf algorithm predicted correctly
+testing$predRight <- pred==testing$Species
+# tabulate results
+table(pred,testing$Species)
+# Result: all the objects were classified right, excepting the 2, which are in the border of the clusters:
+
+# [Additional] plot data points with the incorrect classification highlighted
+qplot(Petal.Width,Petal.Length,colour=predRight,data=testing,main="newdata Predictions")
+
+
+# Notes:  
+#   Random forests are usually one of the two top performing algorithms along with boosting in prediction contests.
+#   Random forests are difficult to interpret but often very accurate.
+#   Care should be taken to avoid overfitting (see rfcv funtion)
+#
+# Further resources:
+#   Random forests (http://www.stat.berkeley.edu/~breiman/RandomForests/cc_home.htm)
+#   Random forest Wikipedia (http://en.wikipedia.org/wiki/Random_forest)
+#   Elements of Statistical Learning
+
+
+
+
+############### Boosting ###############
+# boosting = one of the most widely used and accurate prediction models, along with random forest
+# boosting can be done with any set of classifiers, and a well-known approach is gradient boosting
+
+# process: take a group of weak predictors -> weight them and add them up -> result in a stronger
+# predictor
+#   - start with a set of classifiers h1, . . . , hk
+#       * examples: all possible trees, all possible regression models, all possible cutoffs (divide data
+#                                                                                       into different parts)
+#   - calculate a weighted sum of classifiers as the prediction value
+
+# gbm <- train(outcome ~ variables, method="gbm", data=train, verbose=F) = run boosting
+# model on the given data
+
+# load data
+data(Wage)
+# remove log wage variable (we are trying to predict wage)
+Wage <- subset(Wage,select=-c(logwage))
+# create train/test data sets
+inTrain <- createDataPartition(y=Wage$wage,p=0.7, list=FALSE)
+training <- Wage[inTrain,]; testing <- Wage[-inTrain,]
+# run the gbm model
+modFit <- train(wage ~ ., method="gbm",data=training,verbose=FALSE)
+# print model summary
+print(modFit)
+
+# Plot the results
+qplot(predict(modFit,testing),wage,data=testing)
+
+
+# Notes and further reading:
+#   A couple of nice tutorials for boosting
+#     Freund and Shapire - http://www.cc.gatech.edu/~thad/6601-gradAI-fall2013/boosting.pdf
+#     Ron Meir- http://webee.technion.ac.il/people/rmeir/BoostingTutorial.pdf
+#   Boosting, random forests, and model ensembling are the most common tools that win Kaggle and other prediction contests.
+#     http://www.netflixprize.com/assets/GrandPrize2009_BPC_BigChaos.pdf
+#     https://kaggle2.blob.core.windows.net/wiki-files/327/09ccf652-8c1c-4a3d-b979-ce2369c985e4/Willem%20Mestrom%20-%20Milestone%201%20Description%20V2%202.pdf
+
+
+
+############### Model Based Prediction ###############
+# model based prediction = assumes the data follow a probabilistic model/distribution and use Bayes’
+# theorem to identify optimal classifiers/variables
+# - can potentially take advantage of structure of the data
+# - could help reduce computational complexity (reduce variables)
+# - can be reasonably accurate on real problems
+
+# this approach does make additional assumptions about the data, which can lead to model failure/
+#   reduced accuracy if they are too far off
+
+# goal = build parameter-based model (based on probabilities) for conditional 
+# distribution P(Y = k | X = x), or the probability of the outcome Y is equal to a particular 
+# value k given a specific set of predictor variables x
+
+# typical approach/process:
+# 1. start with the quantity P(Y = k | X = x)
+# 2. apply Bayes’ Theorem, where the denominator is simply the sum of probabilities for the predictor variables are the set
+# specified in x for all outcomes of Y
+# 3. assume the term P(X = x | Y = k) in the numerator follows a parameter-based probability
+# distribution, or fk(x)
+# - common choice = Gaussian distribution
+# 4. assume the probability for the outcome Y to take on value of k, or P(Y = k), is determined from
+# the data to be some known quantity /7k
+# - Note: P(Y = k) is known as the prior probability
+# 5. so the quantity P(Y = k | X = x) can be rewritten ...
+# 6. estimate the parameters (muk, (sigma^2)k) for the function fk(x) from the data
+# 7. calculate P(Y = k | X = x) using the parameters 
+# 8. the outcome Y is where the value of P(Y = k | X = x) is the highest
+
+# prediction models that leverage this approach:
+#   - linear discriminant analysis = assumes fk(x) is multivariate Gaussian distribution with same
+#     covariance for each predictor variables
+#       * effectively drawing lines through “covariate space”
+#   - quadratic discriminant analysis = assumes fk(x) is multivariate Gaussian distribution with
+#     different covariance for predictor variables
+#       * effectively drawing curves through “covariate space”
+#   - normal mixture modeling = assumes more complicated covariance matrix for the predictor
+#     variables
+#   - naive Bayes = assumes independence between predictor variables/features for model building
+#     (covariance = 0)
+#       * Note: this may be an incorrect assumption but it helps to reduce computational complexity
+#         and may still produce a useful result
+
+
+### Linear Discriminant Analysis
+# - lda<-train(outcome ~ predictors, data=training, method="lda") = constructs a linear
+# discriminant analysis model on the predictors with the provided training data
+# - predict(lda, test) = applies the LDA model to test data and return the prediction results in
+# data frame
+
+# load data
+data(iris)
+# create training and test sets
+inTrain <- createDataPartition(y=iris$Species,p=0.7, list=FALSE)
+training <- iris[inTrain,]
+testing <- iris[-inTrain,]
+# run the linear discriminant analysis on training data
+lda <- train(Species ~ .,data=training,method="lda")
+# predict test outcomes using LDA model
+pred.lda <- predict(lda,testing)
+# print results
+pred.lda
+
+
+### Naive Bayes
+# - nb <- train(outcome ~ predictors, data=training, method="nb") = constructs a naive
+# Bayes model on the predictors with the provided training data
+# - predict(nb, test) = applies the naive Bayes model to test data and return the prediction results
+# in data frame
+
+# using the same data from iris, run naive Bayes on training data
+nb <- train(Species ~ ., data=training,method="nb")
+# predict test outcomes using naive Bayes model
+pred.nb <- predict(nb,testing)
+# print results
+pred.nb
+
+
+## Compare Results for LDA and Naive Bayes
+# - linear discriminant analysis and naive Bayes generally produce similar results for small data sets
+# - for our example data from iris data set, we can compare the prediction the results from the two models
+
+# tabulate the prediction results from LDA and naive Bayes
+table(pred.lda,pred.nb)
+
+# create logical variable that returns TRUE for when predictions from the two models match
+equalPredictions <- (pred.lda==pred.nb)
+# plot the comparison
+qplot(Petal.Width,Sepal.Width,colour=equalPredictions,data=testing)
+# Result: only one data point, which is located inbetween the two classes is predicted
+#differently by the two models
+
+
