@@ -1,0 +1,17 @@
+Level 1.
+https://www.coursera.org/learn/machine-learning Machine Learning (Andrew Ng) - общий курс про машинное обучение; 
+https://www.coursera.org/course/neuralnets Neural Networks (Hinton) - подробный курс про нейронные сети, в том числе, вероятностные модели (Boltzmann machines); 
+http://info.usherbrooke.ca/hlarochelle/neural_networks/content.html Neural Networks (Hugo Larochelle) - подробные лекции про нейронные сети, в том числе, вероятностные модели (Conditional Random Fields, Boltzmann Machines).
+
+https://www.edx.org/course/scalable-machine-learning-uc-berkeleyx-cs190-1x#! - Learn the underlying principles required to develop scalable machine learning pipelines and gain hands-on experience using Apache Spark.
+https://www.coursera.org/learn/machine-learning/home/info
+https://pe.gatech.edu/courses/ms-cs-7641-machine-learning-noncredit
+
+Level 2. CNN
+http://www.mathworks.com/matlabcentral/fileexchange/24291-cnn-convolutional-neural-network-class
+
+Level 3. RNN
+http://minds.jacobs-university.de/sites/default/files/uploads/papers/ESNTutorialRev.pdf
+
+Level 4. The Dropout Learning Algorithm
+https://www.google.ru/url?sa=t&rct=j&q=&esrc=s&source=web&cd=1&sqi=2&ved=0CCEQFjAAahUKEwiL58jvpuvHAhUDxI4KHeQ-CaE&url=https%3A%2F%2Fwww.igb.uci.edu%2F~pfbaldi%2Fdownload%2Fdownload.inc.php%3Fpid%3D317&usg=AFQjCNE-a-lpxEXMI15G8tq0QOReBTG9SA&bvm=bv.102022582,d.c2E
